@@ -659,6 +659,20 @@ def xolusat_update_status():
     return jsonify({'status': 'error', 'message': 'Incidente no encontrado'}), 404
 
 
+@app.route('/api/xolusat/delete', methods=['POST'])
+def xolusat_delete():
+    data = request.json
+    incident = data.get('incident', '')
+
+    for i, item in enumerate(xolusat_records):
+        if item['incident'] == incident:
+            xolusat_records.pop(i)
+            _guardar_xolusat()
+            return jsonify({'status': 'success', 'message': f'{incident} eliminado'})
+
+    return jsonify({'status': 'error', 'message': 'Incidente no encontrado'}), 404
+
+
 @app.route('/api/xolusat/clear', methods=['POST'])
 def xolusat_clear():
     xolusat_records.clear()
@@ -669,6 +683,8 @@ def xolusat_clear():
 @app.route('/api/shutdown', methods=['POST'])
 def shutdown_server():
     import os, signal
+    from threading import Timer
+
     print("\n" + "=" * 40)
     print("  USUARIO CERRO LA APLICACION")
     print("  Servidor detenido.")
@@ -677,7 +693,11 @@ def shutdown_server():
     if os.path.exists('server.pid'):
         os.remove('server.pid')
 
-    os.kill(os.getpid(), signal.SIGTERM)
+    # Matar el proceso DESPUÉS de enviar la respuesta al navegador
+    def _kill():
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    Timer(0.5, _kill).start()
     return jsonify({'status': 'success'})
 
 

@@ -793,11 +793,28 @@ function renderXolTable() {
     });
 }
 
-function deleteXolRecord(idx) {
-    xolRecords.splice(idx, 1);
-    renderXolTable();
-    showToast('Registro eliminado', 'danger');
-    updateIncidentDropdown();
+async function deleteXolRecord(idx) {
+    var record = xolRecords[idx];
+    if (!record) return;
+
+    try {
+        var res = await fetch('/api/xolusat/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ incident: record.incident })
+        });
+        var json = await res.json();
+        if (json.status === 'success') {
+            xolRecords.splice(idx, 1);
+            renderXolTable();
+            showToast('Registro eliminado', 'danger');
+            updateIncidentDropdown();
+        } else {
+            showToast(json.message || 'No se pudo eliminar', 'danger');
+        }
+    } catch (e) {
+        showToast('Error de conexión al eliminar', 'danger');
+    }
 }
 
 function estadoBadge(estado) {
