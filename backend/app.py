@@ -50,6 +50,14 @@ if getattr(sys, 'frozen', False):
 else:
     APP_DIR = os.path.dirname(os.path.abspath(__file__))
     DEFAULT_PATH = os.path.join(APP_DIR, "PlanillaEscalamientos.xlsx")
+
+# TEMPORAL: durante refactor de planilla, usar la nueva si existe.
+# Una vez validado, renombrar la nueva como principal y borrar este override.
+_PATH_NUEVA = os.path.join(APP_DIR, "PlanillaEscalamientos.nueva.xlsx")
+if os.path.exists(_PATH_NUEVA):
+    DEFAULT_PATH = _PATH_NUEVA
+    print(f"[INFO] Usando planilla nueva (modo refactor): {DEFAULT_PATH}")
+
 excel = ExcelHandler(DEFAULT_PATH)
 
 # ── Persistencia XOLUSAT ──────────────────────────────────────────────────────
@@ -89,20 +97,17 @@ def _limpiar_par_email(email, cc):
 
 def obtener_contacto_atm(id_norm, custodio, es_fin_de_semana, data):
     """
-    Resuelve (email, cc) para un ATM dado su custodio y el contexto temporal.
+    Resuelve (email, cc) para un ATM. Una búsqueda directa por clave —
+    las claves están separadas por tipo en la planilla CONTACTOS, así
+    que no hay ambigüedad entre IDs de ATM y nombres de custodio.
 
-    Orden de prioridad:
-      SUCURSAL  → finde/feriado: contactos_finde["SUCURSAL"]
-                → semana:        contactos_suc[id_norm]
-      TERCEROS  → 1. ID exacto en dict activo
-                → 2. Nombre de custodio exacto en dict activo
-                → 3. Match exacto (sin espacios) en dict activo
-                → 4. Keyword (BRINKS / STE) en dict activo
+    SUCURSAL  → finde/feriado: data['contactos_finde']["SUCURSAL"]
+              → semana:        data['contactos_suc'][id_norm]
+    TERCEROS  → finde/feriado: data['contactos_finde'][custodio_norm]
+              → semana:        data['contactos'][custodio_norm]
     """
     cust_norm = excel.normalizar(custodio)
-    dict_contactos = data['contactos_finde'] if es_fin_de_semana else data['contactos']
 
-    # ── SUCURSAL ─────────────────────────────────────────────────────────────
     if es_sucursal(cust_norm):
         if es_fin_de_semana and "SUCURSAL" in data['contactos_finde']:
             return _limpiar_par_email(*data['contactos_finde']["SUCURSAL"])
@@ -110,47 +115,10 @@ def obtener_contacto_atm(id_norm, custodio, es_fin_de_semana, data):
             return _limpiar_par_email(*data['contactos_suc'][id_norm])
         return "", ""
 
-    # ── TERCEROS ─────────────────────────────────────────────────────────────
-    # 1. Por ID exacto
-    if id_norm in dict_contactos:
-        email, cc = _limpiar_par_email(*dict_contactos[id_norm])
-        if email:
-            return email, cc
-
-    # 2. Por nombre de custodio exacto
-    if custodio in dict_contactos:
-        email, cc = _limpiar_par_email(*dict_contactos[custodio])
-        if email:
-            return email, cc
-
-    # 3 y 4. Búsqueda heurística (match sin espacios → keywords)
-    cust_upper = cust_norm.upper().replace(" ", "")
-    match_exacto = None
-    match_keyword = None
-
-    for key, val in dict_contactos.items():
-        key_upper = key.upper().replace(" ", "")
-
-        # Match exacto: siempre se chequea, incluso para claves con prefijo BHD
-        # (ej: "BHD - STE Metro" normalizado = "BHDSTEMTERO" debe matchear exacto)
-        if match_exacto is None and cust_upper == key_upper:
-            match_exacto = val
-
-        # Keyword heurístico: se omiten claves BHD para evitar falsos positivos
-        # (ej: "BRINKSESTE" contiene "STE" pero no es contacto de STE)
-        if key_upper.startswith("BHD"):
-            continue
-        if match_keyword is None:
-            if "BRINKS" in cust_upper and "BRINKS" in key_upper:
-                match_keyword = val
-            elif "STE" in cust_upper and "STE" in key_upper:
-                match_keyword = val
-
-    for candidato in (match_exacto, match_keyword):
-        if candidato is not None:
-            email, cc = _limpiar_par_email(*candidato)
-            if email:
-                return email, cc
+    # Terceros (Brinks / STE / etc.)
+    dict_activo = data['contactos_finde'] if es_fin_de_semana else data['contactos']
+    if cust_norm in dict_activo:
+        return _limpiar_par_email(*dict_activo[cust_norm])
 
     return "", ""
 
@@ -235,6 +203,7 @@ def process_failures():
             id_norm = excel.normalizar(id_raw)
             info = excel.data['unificado'].get(id_norm, {})
             record['_custodio'] = info.get('custodio', '')
+            record['_nombre'] = info.get('nombre', '')
             record['_found'] = bool(info)
             failures.append(record)
 
@@ -270,6 +239,10 @@ def send_emails():
         dict_contactos_activos = excel.data['contactos']
 
     df = pd.DataFrame(failures)
+    # Quedarse solo con las columnas del texto pegado (claves numéricas).
+    # Las columnas internas (_custodio, _nombre, _found, _is_header) no van al correo.
+    cols_externas = [c for c in df.columns if str(c).isdigit()]
+    df = df[cols_externas]
     df.columns = [str(i) for i in range(len(df.columns))]
     df['id_norm'] = df['0'].apply(excel.normalizar)
     grupos = df.groupby('id_norm')
@@ -493,28 +466,28 @@ def add_atm():
     nombre = data.get('nombre')
     sla = data.get('sla')
     custodio = data.get('custodio')
+    email = data.get('email', '') or ''
+    cc = data.get('cc', '') or ''
 
     if not all([atm_id, nombre, sla, custodio]):
         return jsonify({'status': 'error', 'message': 'Todos los campos son obligatorios.'}), 400
 
+    es_suc = "SUCURSAL" in custodio.upper() or custodio.upper().startswith("SUC")
+    if es_suc and not email:
+        return jsonify({'status': 'error', 'message': 'Para sucursal se requiere el email.'}), 400
+
     # Guardar en Excel
-    success, message = excel.guardar_atm(atm_id, nombre, sla, custodio)
+    success, message = excel.guardar_atm(atm_id, nombre, sla, custodio, email, cc)
     if success:
-        # Actualizar datos en memoria (igual que original)
         id_norm = excel.normalizar(atm_id)
         excel.data['unificado'][id_norm] = {
             'nombre': nombre,
             'custodio': custodio,
             'sla_marcas': sla,
-            'sla_brinks': '',
-            'denominacion': '',
-            'zona': '',
-            'disp_o_mult': '',
-            'address2': nombre,
-            'city': '',
-            'ip_address': '',
-            'district': sla
         }
+        # Actualizar dict de contactos en memoria si es sucursal
+        if es_suc and email:
+            excel.data['contactos_suc'][id_norm] = [email, cc]
         return jsonify({'status': 'success', 'message': message})
     return jsonify({'status': 'error', 'message': message}), 400
 

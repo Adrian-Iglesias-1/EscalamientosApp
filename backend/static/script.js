@@ -219,7 +219,7 @@ function renderPreview() {
 
     dataToShow.forEach(function(row, i) {
         var idRaw    = row['0'] || '';
-        var tipo     = row['2'] || '';
+        var nombre   = row['_nombre'] || '';
         var custodio = row['_custodio'] || '';
         var found    = row['_found'] === true || row['_found'] === 'true';
 
@@ -234,7 +234,7 @@ function renderPreview() {
         tr.style.animationDelay = (i * 30) + 'ms';
         tr.innerHTML =
             '<td>' + idRaw + '</td>' +
-            '<td>' + tipo + '</td>' +
+            '<td>' + nombre + '</td>' +
             '<td><span class="' + custClass + '">' + custLabel + '</span></td>';
         tbody.appendChild(tr);
     });
@@ -249,6 +249,7 @@ function renderPreview() {
             var div = document.createElement('div');
             div.className = 'border rounded p-3 bg-light';
             div.id = 'notfound-' + normalizarId(id);
+            var nid = normalizarId(id);
             div.innerHTML =
                 '<div class="d-flex align-items-center gap-3 mb-2">' +
                     '<span class="badge bg-danger">' + id + '</span>' +
@@ -256,10 +257,10 @@ function renderPreview() {
                 '</div>' +
                 '<div class="row g-2">' +
                     '<div class="col-md-4">' +
-                        '<input type="text" class="form-control form-control-sm" placeholder="Nombre (Ag. Ejemplo)" id="nf-name-' + normalizarId(id) + '">' +
+                        '<input type="text" class="form-control form-control-sm" placeholder="Nombre (Ag. Ejemplo)" id="nf-name-' + nid + '">' +
                     '</div>' +
                     '<div class="col-md-4">' +
-                        '<select class="form-select form-select-sm" id="nf-cust-' + normalizarId(id) + '">' +
+                        '<select class="form-select form-select-sm" id="nf-cust-' + nid + '" onchange="toggleNfEmail(\'' + nid + '\')">' +
                             '<option value="SUCURSAL">SUCURSAL</option>' +
                             '<option value="STE Metro">STE Metro</option>' +
                             '<option value="Brinks METRO">Brinks METRO</option>' +
@@ -269,10 +270,18 @@ function renderPreview() {
                         '</select>' +
                     '</div>' +
                     '<div class="col-md-2">' +
-                        '<input type="text" class="form-control form-control-sm" placeholder="SLA" id="nf-sla-' + normalizarId(id) + '">' +
+                        '<input type="text" class="form-control form-control-sm" placeholder="SLA" id="nf-sla-' + nid + '">' +
                     '</div>' +
                     '<div class="col-md-2">' +
                         '<button class="btn btn-success btn-sm w-100" onclick="addNotFoundATM(\'' + id + '\')"><i class="bi bi-plus-circle"></i> Agregar</button>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="row g-2 mt-2" id="nf-email-row-' + nid + '">' +
+                    '<div class="col-md-6">' +
+                        '<input type="text" class="form-control form-control-sm" placeholder="Email sucursal" id="nf-email-' + nid + '">' +
+                    '</div>' +
+                    '<div class="col-md-6">' +
+                        '<input type="text" class="form-control form-control-sm" placeholder="CC (opcional)" id="nf-cc-' + nid + '">' +
                     '</div>' +
                 '</div>';
             list.appendChild(div);
@@ -286,20 +295,34 @@ function normalizarId(id) {
     return (id || '').toUpperCase().replace(/[.\-_\s\/]/g, '');
 }
 
+function toggleNfEmail(idNorm) {
+    var sel = document.getElementById('nf-cust-' + idNorm);
+    var row = document.getElementById('nf-email-row-' + idNorm);
+    if (!sel || !row) return;
+    row.style.display = (sel.value === 'SUCURSAL') ? '' : 'none';
+}
+
 async function addNotFoundATM(idRaw) {
     var idNorm = normalizarId(idRaw);
     var nombre = document.getElementById('nf-name-' + idNorm).value.trim();
     var custodio = document.getElementById('nf-cust-' + idNorm).value;
     var sla = document.getElementById('nf-sla-' + idNorm).value.trim();
+    var emailEl = document.getElementById('nf-email-' + idNorm);
+    var ccEl = document.getElementById('nf-cc-' + idNorm);
+    var email = emailEl ? emailEl.value.trim() : '';
+    var cc = ccEl ? ccEl.value.trim() : '';
 
     if (!nombre) return showToast('Ingrese el nombre del ATM', 'danger');
     if (!sla) return showToast('Ingrese el SLA', 'danger');
+    if (custodio === 'SUCURSAL' && !email) {
+        return showToast('Ingrese el email de la sucursal', 'danger');
+    }
 
     try {
         var res = await fetch('/api/add-atm', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: idRaw, nombre: nombre, sla: sla, custodio: custodio })
+            body: JSON.stringify({ id: idRaw, nombre: nombre, sla: sla, custodio: custodio, email: email, cc: cc })
         });
         var data = await res.json();
         if (data.status === 'success') {
