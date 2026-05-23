@@ -5,6 +5,7 @@ var currentXolATM = null;
 var scriptsFallas = [];
 var metricasChart = null;
 var metricasChartDias = null;
+var metricasChartSector = null;
 
 // ==========================================
 // TOAST & MODAL (Bootstrap)
@@ -663,8 +664,12 @@ async function sendEmails() {
         var data = await res.json();
         if (data.status === 'success') {
             var r = data.results;
-            metricasMarkCorreos(r.abiertos);
-            showToast('Correos: ' + r.abiertos + ' abiertos | ' + r.sin_sla + ' sin SLA | ' + r.sin_contacto + ' sin contacto', 'success');
+            metricasMarkCorreos(r.abiertos, r.sucursal, r.terceros);
+            var toastParts = ['Correos: ' + r.abiertos + ' abiertos'];
+            if (r.sucursal) toastParts.push(r.sucursal + ' sucursal');
+            if (r.terceros) toastParts.push(r.terceros + ' terceros');
+            toastParts.push(r.sin_sla + ' sin SLA', r.sin_contacto + ' sin contacto');
+            showToast(toastParts.join(' | '), 'success');
         } else {
             showToast(data.message || 'Error al enviar correos', 'danger');
         }
@@ -1203,13 +1208,13 @@ async function guardarSucursalFinde() {
 // MÉTRICAS DE SESIÓN / TIMER
 // ==========================================
 
-var _met = { activo: false, inicio: null, procesado: null, correos: null, scripts: null, vision: null, n_atms: 0, correos_count: 0, scripts_count: 0 };
+var _met = { activo: false, inicio: null, procesado: null, correos: null, scripts: null, vision: null, n_atms: 0, correos_count: 0, correos_sucursal: 0, correos_terceros: 0, scripts_count: 0 };
 var _metTimer = null;
 
 function metricasStartSession(nAtms) {
     metricasResetTimer();
     var now = Date.now();
-    _met = { activo: true, inicio: now, procesado: now, correos: null, scripts: null, vision: null, vision_inicio: null, vision_tks: [], n_atms: nAtms, correos_count: 0, scripts_count: 0 };
+    _met = { activo: true, inicio: now, procesado: now, correos: null, scripts: null, vision: null, vision_inicio: null, vision_tks: [], n_atms: nAtms, correos_count: 0, correos_sucursal: 0, correos_terceros: 0, scripts_count: 0 };
     _metUpdateTimer();
     _metTimer = setInterval(_metUpdateTimer, 1000);
     var tw = document.getElementById('session-timer-widget');
@@ -1247,10 +1252,12 @@ function _metUpdateEtapas() {
     el.innerHTML = parts.join('<span class="mx-1 text-muted">›</span>');
 }
 
-function metricasMarkCorreos(count) {
+function metricasMarkCorreos(count, sucursal, terceros) {
     if (!_met.activo) return;
     _met.correos = Date.now();
     _met.correos_count = count;
+    _met.correos_sucursal = sucursal || 0;
+    _met.correos_terceros = terceros || 0;
     _metUpdateEtapas();
     var vb = document.getElementById('btn-vision-done');
     if (vb) vb.style.display = '';
@@ -1322,8 +1329,10 @@ async function _metGuardarSesion() {
         d.vision_por_tk_ms  = Math.round(d.vision_ms / t.vision_tks.length);
         d.vision_tks_count  = t.vision_tks.length;
     }
-    if (d.correos_ms && t.n_atms > 0) {
-        d.correos_por_atm_ms = Math.round(d.correos_ms / t.n_atms);
+    if (t.n_atms > 0) {
+        if (d.correos_ms) d.correos_por_atm_ms = Math.round(d.correos_ms / t.n_atms);
+        if (d.scripts_ms) d.scripts_por_atm_ms = Math.round(d.scripts_ms / t.n_atms);
+        if (d.total_ms)   d.total_por_atm_ms   = Math.round(d.total_ms   / t.n_atms);
     }
 
     var now = new Date();
@@ -1334,6 +1343,8 @@ async function _metGuardarSesion() {
         dia_semana: dias[now.getDay()],
         n_atms: t.n_atms,
         correos_enviados: t.correos_count,
+        correos_sucursal: t.correos_sucursal,
+        correos_terceros: t.correos_terceros,
         scripts_generados: t.scripts_count,
         duraciones: d
     };
@@ -1378,29 +1389,31 @@ function renderMetricas(sesiones) {
         return vals.length ? Math.round(vals.reduce(function(a,b){return a+b;},0) / vals.length) : 0;
     }
     var avgVisionTk  = avgPerUnit('vision_por_tk_ms');
-    var avgCorreoAtm = avgPerUnit('correos_por_atm_ms');
+    var avgEnvioAtm  = avgPerUnit('scripts_por_atm_ms');
+    var avgTotalAtm  = avgPerUnit('total_por_atm_ms');
     var elVTk = document.getElementById('met-card-vision-tk');
-    if (elVTk) elVTk.textContent = avgVisionTk  ? formatMs(avgVisionTk)  : '—';
-    var elCAm = document.getElementById('met-card-correo-atm');
-    if (elCAm) elCAm.textContent = avgCorreoAtm ? formatMs(avgCorreoAtm) : '—';
+    if (elVTk) elVTk.textContent = avgVisionTk ? formatMs(avgVisionTk) : '—';
+    var elEAm = document.getElementById('met-card-envio-atm');
+    if (elEAm) elEAm.textContent = avgEnvioAtm ? formatMs(avgEnvioAtm) : '—';
+    var elTAm = document.getElementById('met-card-total-atm');
+    if (elTAm) elTAm.textContent = avgTotalAtm ? formatMs(avgTotalAtm) : '—';
 
-    function avgStage(key) {
-        var vals = sesiones.filter(function(s){ return s.duraciones && s.duraciones[key]; })
-                           .map(function(s){ return Math.round(s.duraciones[key] / 1000); });
-        return vals.length ? Math.round(vals.reduce(function(a,b){return a+b;},0) / vals.length) : 0;
-    }
-
-    // Gráfico 1: tiempo promedio por etapa
+    // Gráfico 1: tiempo promedio por etapa normalizado por ATM/TK
     if (metricasChart) { metricasChart.destroy(); metricasChart = null; }
     var canvas = document.getElementById('metricas-chart');
     if (canvas) {
+        var chartData = [
+            Math.round(avgPerUnit('correos_por_atm_ms') / 1000),
+            Math.round(avgPerUnit('scripts_por_atm_ms') / 1000),
+            Math.round(avgPerUnit('vision_por_tk_ms')   / 1000)
+        ];
         metricasChart = new Chart(canvas.getContext('2d'), {
             type: 'bar',
             data: {
-                labels: ['Correos', 'Scripts', 'Vision'],
+                labels: ['Correos/ATM', 'Envío emails/ATM', 'Vision/TK'],
                 datasets: [{
-                    label: 'Segundos promedio',
-                    data: [avgStage('correos_ms'), avgStage('scripts_ms'), avgStage('vision_ms')],
+                    label: 'Segundos por ticket',
+                    data: chartData,
                     backgroundColor: ['rgba(13,110,253,0.75)', 'rgba(253,126,20,0.75)', 'rgba(111,66,193,0.75)'],
                     borderColor:     ['#0D6EFD', '#FD7E14', '#6F42C1'],
                     borderWidth: 2,
@@ -1412,14 +1425,47 @@ function renderMetricas(sesiones) {
                 maintainAspectRatio: false,
                 plugins: {
                     legend: { display: false },
-                    tooltip: { callbacks: { label: function(ctx){ return formatMs(ctx.raw * 1000) + ' prom.'; } } }
+                    tooltip: { callbacks: { label: function(ctx){ return formatMs(ctx.raw * 1000) + ' por ticket'; } } }
                 },
-                scales: { y: { beginAtZero: true, title: { display: true, text: 'Segundos' } } }
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'Seg/ticket' } } }
             }
         });
     }
 
-    // Gráfico 2: sesiones por día (últimos 7 días)
+    // Gráfico 2: correos por sector (dona acumulada)
+    if (metricasChartSector) { metricasChartSector.destroy(); metricasChartSector = null; }
+    var canvasSector = document.getElementById('metricas-chart-sector');
+    if (canvasSector) {
+        var totalSuc  = sesiones.reduce(function(s,x){ return s + (x.correos_sucursal||0); }, 0);
+        var totalTerc = sesiones.reduce(function(s,x){ return s + (x.correos_terceros||0); }, 0);
+        metricasChartSector = new Chart(canvasSector.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Sucursal', 'Terceros'],
+                datasets: [{
+                    data: [totalSuc, totalTerc],
+                    backgroundColor: ['rgba(13,110,253,0.8)', 'rgba(253,126,20,0.8)'],
+                    borderColor: ['#0D6EFD', '#FD7E14'],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { size: 11 } } },
+                    tooltip: { callbacks: { label: function(ctx){ return ctx.label + ': ' + ctx.raw + ' correos'; } } }
+                },
+                cutout: '60%'
+            }
+        });
+        var elST = document.getElementById('met-sector-totals');
+        if (elST) elST.innerHTML =
+            '<span style="color:#0D6EFD;"><strong>' + totalSuc  + '</strong> Sucursal</span>' +
+            '<span style="color:#FD7E14;"><strong>' + totalTerc + '</strong> Terceros</span>';
+    }
+
+    // Gráfico 3: sesiones por día (últimos 7 días)
     if (metricasChartDias) { metricasChartDias.destroy(); metricasChartDias = null; }
     var canvas2 = document.getElementById('metricas-chart-dias');
     if (canvas2) {
@@ -1461,7 +1507,7 @@ function renderMetricas(sesiones) {
     if (!tbody) return;
     tbody.innerHTML = '';
     if (sesiones.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-5"><i class="bi bi-inbox fs-2 d-block mb-2 opacity-50"></i>Sin sesiones registradas aún</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-5"><i class="bi bi-inbox fs-2 d-block mb-2 opacity-50"></i>Sin sesiones registradas aún</td></tr>';
         return;
     }
     sesiones.slice(-20).reverse().forEach(function(s) {
@@ -1471,12 +1517,13 @@ function renderMetricas(sesiones) {
             '<td class="small text-muted">' + (s.fecha || '') + '</td>' +
             '<td class="small">' + (s.hora || '') + '</td>' +
             '<td class="text-center fw-bold">' + (s.n_atms || 0) + '</td>' +
-            '<td class="text-center">' + (s.correos_enviados || 0) + '</td>' +
-            '<td class="small" style="color:#0D6EFD;">' + formatMs(d.correos_ms) + (d.correos_por_atm_ms ? ' <span class="text-muted">(' + formatMs(d.correos_por_atm_ms) + '/ATM)</span>' : '') + '</td>' +
-            '<td class="small" style="color:#FD7E14;">' + formatMs(d.scripts_ms) + '</td>' +
-            '<td class="small" style="color:#6F42C1;">' + formatMs(d.vision_ms) + '</td>' +
+            '<td class="text-center">' + (s.correos_sucursal || 0) + '</td>' +
+            '<td class="text-center">' + (s.correos_terceros || 0) + '</td>' +
+            '<td class="small" style="color:#0D6EFD;">' + (d.correos_por_atm_ms ? formatMs(d.correos_por_atm_ms) + '<span class="text-muted">/ATM</span>' : formatMs(d.correos_ms)) + '</td>' +
+            '<td class="small" style="color:#FD7E14;">' + (d.scripts_por_atm_ms ? formatMs(d.scripts_por_atm_ms) + '<span class="text-muted">/ATM</span>' : formatMs(d.scripts_ms)) + '</td>' +
+            '<td class="small" style="color:#6F42C1;">' + (d.vision_por_tk_ms ? formatMs(d.vision_por_tk_ms) + '<span class="text-muted">/TK</span>' : formatMs(d.vision_ms)) + '</td>' +
             '<td class="small fw-bold" style="color:#20c997;">' + (d.vision_por_tk_ms ? formatMs(d.vision_por_tk_ms) + ' <span class="text-muted small">×' + (d.vision_tks_count||'?') + 'tk</span>' : '—') + '</td>' +
-            '<td class="small fw-bold">' + formatMs(d.total_ms) + '</td>';
+            '<td class="small fw-bold">' + (d.total_por_atm_ms ? formatMs(d.total_por_atm_ms) + '<span class="text-muted">/ATM</span>' : formatMs(d.total_ms)) + '</td>';
         tbody.appendChild(tr);
     });
 }

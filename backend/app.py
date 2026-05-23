@@ -255,7 +255,7 @@ def send_emails():
     df['id_norm'] = df['0'].apply(excel.normalizar)
     grupos = df.groupby('id_norm')
 
-    results = {'abiertos': 0, 'sin_sla': 0, 'sin_contacto': 0}
+    results = {'abiertos': 0, 'sin_sla': 0, 'sin_contacto': 0, 'sucursal': 0, 'terceros': 0}
 
     for id_norm, group in grupos:
         if not id_norm.strip() or id_norm.lower() == "nan":
@@ -266,6 +266,7 @@ def send_emails():
         email = ""
         cc = ""
         asunto = ""
+        tipo_dest = 'terceros'
 
         # ── Resolver contacto ─────────────────────────────────────────────────
         if id_norm in excel.data['unificado']:
@@ -277,6 +278,9 @@ def send_emails():
                 results['sin_contacto'] += 1
                 continue
 
+            if es_sucursal(excel.normalizar(custodio)):
+                tipo_dest = 'sucursal'
+
             tipo_pasted = str(primer_fila['2']) if '2' in primer_fila else ""
             asunto = f"ESCALAMIENTO FALLA- ATM {id_raw} - {tipo_pasted}"
 
@@ -284,6 +288,7 @@ def send_emails():
             # ATM NO está en unificado → buscar en dict_suc directamente (igual que original)
             if id_norm in excel.data['contactos_suc']:
                 email, cc = excel.data['contactos_suc'][id_norm]
+                tipo_dest = 'sucursal'
                 tipo_pasted = str(primer_fila['2']) if '2' in primer_fila else ""
                 asunto = f"ESCALAMIENTO FALLA- ATM {id_raw} - {tipo_pasted}"
             else:
@@ -341,6 +346,7 @@ def send_emails():
             success, msg = crear_correo_outlook(email, cc, asunto, cuerpo)
             if success:
                 results['abiertos'] += 1
+                results[tipo_dest] += 1
             else:
                 return jsonify({'status': 'error', 'message': msg}), 500
 
