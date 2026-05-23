@@ -78,23 +78,19 @@ exit /b 1
 echo.
 
 :: Verificar planilla
-if not exist "backend\PlanillaEscalamientos.xlsx" (
-    echo.
-    echo ============================================
-    echo   ATENCION: No se encontro la planilla
-    echo ============================================
-    echo.
-    echo   PlanillaEscalamientos.xlsx no esta en la
-    echo   carpeta backend\.
-    echo.
-    echo   Si es una ACTUALIZACION: copia tu planilla
-    echo   anterior a: %~dp0backend\
-    echo.
-    echo   Si es INSTALACION NUEVA: ignora este aviso
-    echo   y presiona cualquier tecla para continuar.
-    echo.
-    pause
-)
+if not exist "backend\PlanillaEscalamientos.xlsx" goto sin_planilla
+goto con_planilla
+:sin_planilla
+echo.
+echo ============================================
+echo   ATENCION: No se encontro la planilla
+echo ============================================
+echo.
+echo   Copia PlanillaEscalamientos.xlsx a la carpeta backend
+echo   y vuelve a ejecutar iniciar.bat
+echo.
+pause
+:con_planilla
 
 :: Entrar a backend y crear venv
 cd backend
