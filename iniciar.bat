@@ -77,6 +77,25 @@ exit /b 1
 :python_ok
 echo.
 
+:: Verificar planilla
+if not exist "backend\PlanillaEscalamientos.xlsx" (
+    echo.
+    echo ============================================
+    echo   ATENCION: No se encontro la planilla
+    echo ============================================
+    echo.
+    echo   PlanillaEscalamientos.xlsx no esta en la
+    echo   carpeta backend\.
+    echo.
+    echo   Si es una ACTUALIZACION: copia tu planilla
+    echo   anterior a: %~dp0backend\
+    echo.
+    echo   Si es INSTALACION NUEVA: ignora este aviso
+    echo   y presiona cualquier tecla para continuar.
+    echo.
+    pause
+)
+
 :: Entrar a backend y crear venv
 cd backend
 echo [2/4] Verificando entorno virtual...
