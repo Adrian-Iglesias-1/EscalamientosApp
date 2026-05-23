@@ -1,4 +1,4 @@
-$dest = "C:\Users\the_f\OneDrive\Escritorio\EscalamientosApp-1.1\EscalamientosApp-v2.2.zip"
+$dest = "C:\Users\the_f\OneDrive\Escritorio\EscalamientosApp-1.1\EscalamientosApp.zip"
 $src  = "C:\Users\the_f\OneDrive\Escritorio\EscalamientosApp-1.1"
 $tmp  = "$env:TEMP\EscalamientosApp_build"
 
@@ -7,7 +7,7 @@ Remove-Item $tmp -Recurse -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $tmp | Out-Null
 
 $excludeDirs  = @('venv', '.git', '__pycache__', '.claude', 'fotos')
-$excludeFiles = @('make-zip.ps1', 'PlanillaEscalamientos.xlsx')
+$excludeFiles = @('make-zip.ps1', 'check-zip.ps1', 'PlanillaEscalamientos.xlsx', 'xolusat_records.json', 'metricas_sesiones.json', 'README.md', '.gitattributes', '.gitignore')
 $excludeExt   = @('.zip', '.log', '.db', '.sqlite', '.pyc')
 
 Get-ChildItem $src -Recurse | Where-Object {
