@@ -1529,6 +1529,19 @@ function renderMetricas(sesiones) {
 }
 
 // ==========================================
+// PDF REPORT
+// ==========================================
+
+function generarReportePDF() {
+    var el = document.getElementById('print-fecha');
+    if (el) {
+        var now = new Date();
+        el.textContent = 'Generado el ' + now.toLocaleDateString('es-AR', { weekday:'long', year:'numeric', month:'long', day:'numeric' }) + ' a las ' + now.toLocaleTimeString('es-AR', { hour:'2-digit', minute:'2-digit' });
+    }
+    window.print();
+}
+
+// ==========================================
 // INIT
 // ==========================================
 
