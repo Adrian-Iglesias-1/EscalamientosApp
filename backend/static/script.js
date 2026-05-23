@@ -3,6 +3,8 @@ var fullData = null;
 var xolRecords = [];
 var currentXolATM = null;
 var scriptsFallas = [];
+var metricasChart = null;
+var metricasChartDias = null;
 
 // ==========================================
 // TOAST & MODAL (Bootstrap)
@@ -131,6 +133,9 @@ function showTab(tabId) {
     if (tabId === 'xolusat') {
         loadXolRecords();
     }
+    if (tabId === 'metricas') {
+        loadMetricas();
+    }
 }
 
 // ==========================================
@@ -181,6 +186,8 @@ async function processFailures() {
         if (data.status === 'success') {
             failuresData = data.failures;
             renderPreview();
+            var nAtms = data.failures.filter(function(r){return !r._is_header;}).length;
+            metricasStartSession(nAtms);
             showToast(data.failures.length + ' fallas cargadas', 'success');
             var emailInfo = document.getElementById('email-info');
             if (emailInfo) {
@@ -412,28 +419,8 @@ function setupDropZone() {
     });
     
     dropZone.addEventListener('drop', function(e) {
-        var dt = e.dataTransfer;
-        var files = dt.files;
-        if (files.length === 0) return;
-
-        var file = files[0];
-        var validTypes = ['text/plain', 'text/csv', 'text/tab-separated-values', 'application/vnd.ms-excel'];
-        var validExt = /\.(txt|tsv|csv)$/i.test(file.name);
-
-        if (validTypes.includes(file.type) || validExt) {
-            var reader = new FileReader();
-            reader.onload = function(ev) {
-                textarea.value = ev.target.result;
-                updateLineCount();
-                showToast('Archivo cargado: ' + file.name, 'success');
-            };
-            reader.onerror = function() {
-                showToast('No se pudo leer el archivo.', 'danger');
-            };
-            reader.readAsText(file, 'UTF-8');
-        } else {
-            showToast('Solo se aceptan archivos de texto (.txt, .tsv, .csv). Para Excel, copiá y pegá con Ctrl+V.', 'warning');
-        }
+        // El área es solo para pegar desde Excel (Ctrl+C / Ctrl+V)
+        // No se procesan archivos arrastrados
     }, false);
 }
 
@@ -506,6 +493,7 @@ function clearFailures() {
     document.getElementById('pasted-text').value = '';
     failuresData = [];
     scriptsFallas = [];
+    metricasResetTimer();
     
     // Restaurar empty state en la tabla
     var tbody = document.getElementById('preview-tbody') ||
@@ -558,6 +546,7 @@ async function loadScripts() {
         if (data.status === 'success') {
             scriptsFallas = data.scripts || [];
             renderScriptsOnlyFallas();
+            metricasMarkScripts(scriptsFallas.length);
             showToast(scriptsFallas.length + ' scripts generados', 'success');
             // Cambiar al tab de scripts para mostrar los resultados
             document.querySelectorAll('.tab-content').forEach(function(t) { t.classList.remove('active'); });
@@ -591,7 +580,10 @@ function renderScriptsOnlyFallas() {
         div.innerHTML =
             '<div class="script-header">' +
                 '<div><span class="badge bg-dark me-2">TK: ' + s.ticket + '</span><span class="badge ' + destinoClass + '">' + destino + '</span></div>' +
-                '<button onclick="copyToClipboard(\'' + safeComment + '\')" class="btn btn-outline-dark btn-sm"><i class="bi bi-clipboard"></i></button>' +
+                '<div class="d-flex gap-1">' +
+                    '<button onclick="copyToClipboard(\'' + safeComment + '\')" class="btn btn-outline-dark btn-sm" title="Copiar"><i class="bi bi-clipboard"></i></button>' +
+                    '<button onclick="markTkVisionDone(this)" class="btn btn-outline-success btn-sm" data-tk-vision="pending" title="Marcar como documentado en Vision"><i class="bi bi-check2"></i></button>' +
+                '</div>' +
             '</div>' +
             '<code class="small text-dark">' + s.comentario + '</code>';
         container.appendChild(div);
@@ -671,6 +663,7 @@ async function sendEmails() {
         var data = await res.json();
         if (data.status === 'success') {
             var r = data.results;
+            metricasMarkCorreos(r.abiertos);
             showToast('Correos: ' + r.abiertos + ' abiertos | ' + r.sin_sla + ' sin SLA | ' + r.sin_contacto + ' sin contacto', 'success');
         } else {
             showToast(data.message || 'Error al enviar correos', 'danger');
@@ -1204,6 +1197,288 @@ async function guardarSucursalFinde() {
             }
         } catch (e) { showToast('Error de conexión', 'danger'); }
     }, 'Guardar finde SUCURSAL');
+}
+
+// ==========================================
+// MÉTRICAS DE SESIÓN / TIMER
+// ==========================================
+
+var _met = { activo: false, inicio: null, procesado: null, correos: null, scripts: null, vision: null, n_atms: 0, correos_count: 0, scripts_count: 0 };
+var _metTimer = null;
+
+function metricasStartSession(nAtms) {
+    metricasResetTimer();
+    var now = Date.now();
+    _met = { activo: true, inicio: now, procesado: now, correos: null, scripts: null, vision: null, vision_inicio: null, vision_tks: [], n_atms: nAtms, correos_count: 0, scripts_count: 0 };
+    _metUpdateTimer();
+    _metTimer = setInterval(_metUpdateTimer, 1000);
+    var tw = document.getElementById('session-timer-widget');
+    if (tw) tw.classList.remove('d-none');
+    _metUpdateEtapas();
+}
+
+function metricasResetTimer() {
+    if (_metTimer) { clearInterval(_metTimer); _metTimer = null; }
+    _met.activo = false;
+    var tw = document.getElementById('session-timer-widget');
+    if (tw) tw.classList.add('d-none');
+    var vb = document.getElementById('btn-vision-done');
+    if (vb) { vb.style.display = 'none'; vb.className = 'btn btn-outline-success'; vb.innerHTML = '<i class="bi bi-check2-square me-1"></i> Vision ✓'; }
+    var el = document.getElementById('session-timer');
+    if (el) el.textContent = '00:00';
+}
+
+function _metUpdateTimer() {
+    if (!_met.activo || !_met.inicio) return;
+    var elapsed = Math.floor((Date.now() - _met.inicio) / 1000);
+    var m = Math.floor(elapsed / 60);
+    var s = elapsed % 60;
+    var el = document.getElementById('session-timer');
+    if (el) el.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+function _metUpdateEtapas() {
+    var el = document.getElementById('met-etapas');
+    if (!el) return;
+    var parts = ['<span style="color:#54b948;">✓ Datos</span>'];
+    if (_met.correos) parts.push('<span style="color:#0D6EFD;">✓ Correos</span>');
+    if (_met.scripts) parts.push('<span style="color:#FD7E14;">✓ Scripts</span>');
+    if (_met.vision)  parts.push('<span style="color:#6F42C1;font-weight:600;">✓ Vision</span>');
+    el.innerHTML = parts.join('<span class="mx-1 text-muted">›</span>');
+}
+
+function metricasMarkCorreos(count) {
+    if (!_met.activo) return;
+    _met.correos = Date.now();
+    _met.correos_count = count;
+    _metUpdateEtapas();
+    var vb = document.getElementById('btn-vision-done');
+    if (vb) vb.style.display = '';
+}
+
+function metricasMarkScripts(count) {
+    if (!_met.activo) return;
+    _met.scripts = Date.now();
+    _met.scripts_count = count;
+    _metUpdateEtapas();
+    var vb = document.getElementById('btn-vision-done');
+    if (vb) vb.style.display = '';
+}
+
+function markTkVisionDone(btn) {
+    var now = Date.now();
+    if (_met.vision_tks.length === 0) {
+        _met.vision_inicio = now;
+    }
+    _met.vision_tks.push(now);
+    btn.setAttribute('data-tk-vision', 'done');
+    btn.className = 'btn btn-success btn-sm';
+    btn.innerHTML = '<i class="bi bi-check2-all"></i>';
+    btn.disabled = true;
+
+    var total = document.querySelectorAll('[data-tk-vision]').length;
+    var done  = document.querySelectorAll('[data-tk-vision="done"]').length;
+    var prog  = document.getElementById('vision-tk-progress');
+    if (prog) prog.textContent = done + '/' + total + ' documentados';
+
+    if (done >= total && total > 0) markVisionDone();
+}
+
+function markVisionDone() {
+    if (!_met.activo) { showToast('No hay sesión activa', 'warning'); return; }
+    _met.vision = Date.now();
+    if (!_met.vision_inicio) {
+        _met.vision_inicio = (_met.vision_tks.length > 0) ? _met.vision_tks[0] : (_met.scripts || _met.correos || _met.procesado);
+    }
+    _metUpdateEtapas();
+    var vb = document.getElementById('btn-vision-done');
+    if (vb) { vb.className = 'btn btn-success'; vb.innerHTML = '<i class="bi bi-check2-all me-1"></i> Vision ✓'; }
+    _metGuardarSesion();
+}
+
+function formatMs(ms) {
+    if (!ms && ms !== 0) return '—';
+    var s = Math.round(ms / 1000);
+    if (s < 1) return '<1s';
+    var m = Math.floor(s / 60);
+    s = s % 60;
+    return m > 0 ? m + 'm ' + (s > 0 ? s + 's' : '') : s + 's';
+}
+
+async function _metGuardarSesion() {
+    _met.activo = false;
+    if (_metTimer) { clearInterval(_metTimer); _metTimer = null; }
+
+    var t = _met;
+    var d = {};
+    var prev = t.procesado || t.inicio;
+    if (t.correos) { d.correos_ms = t.correos - prev; prev = t.correos; }
+    if (t.scripts) { d.scripts_ms = t.scripts - prev; prev = t.scripts; }
+    var visionRef = t.vision_inicio || prev;
+    if (t.vision)  { d.vision_ms  = t.vision - visionRef; }
+    var lastStep = t.vision || t.scripts || t.correos || t.procesado;
+    if (lastStep && t.inicio) d.total_ms = lastStep - t.inicio;
+    if (d.vision_ms && t.vision_tks && t.vision_tks.length > 0) {
+        d.vision_por_tk_ms  = Math.round(d.vision_ms / t.vision_tks.length);
+        d.vision_tks_count  = t.vision_tks.length;
+    }
+    if (d.correos_ms && t.n_atms > 0) {
+        d.correos_por_atm_ms = Math.round(d.correos_ms / t.n_atms);
+    }
+
+    var now = new Date();
+    var dias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+    var sesion = {
+        fecha: now.toISOString().split('T')[0],
+        hora: String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0'),
+        dia_semana: dias[now.getDay()],
+        n_atms: t.n_atms,
+        correos_enviados: t.correos_count,
+        scripts_generados: t.scripts_count,
+        duraciones: d
+    };
+
+    try {
+        await fetch('/api/metricas/registrar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(sesion)
+        });
+        showToast('Sesión guardada — total: ' + formatMs(d.total_ms), 'success');
+    } catch (e) { console.error('Error guardando sesión', e); }
+}
+
+async function loadMetricas() {
+    try {
+        var res = await fetch('/api/metricas/historial');
+        var data = await res.json();
+        if (data.status === 'success') renderMetricas(data.sesiones);
+    } catch (e) { console.error('Error cargando métricas', e); }
+}
+
+function renderMetricas(sesiones) {
+    var hoy = new Date().toISOString().split('T')[0];
+    document.getElementById('met-card-hoy').textContent    = sesiones.filter(function(s){ return s.fecha === hoy; }).length;
+    document.getElementById('met-card-total').textContent  = sesiones.length;
+
+    var conTotal = sesiones.filter(function(s){ return s.duraciones && s.duraciones.total_ms; });
+    if (conTotal.length > 0) {
+        var avgTotal  = conTotal.reduce(function(sum,s){ return sum + s.duraciones.total_ms; }, 0) / conTotal.length;
+        var bestTotal = Math.min.apply(null, conTotal.map(function(s){ return s.duraciones.total_ms; }));
+        document.getElementById('met-card-promedio').textContent = formatMs(avgTotal);
+        document.getElementById('met-card-mejor').textContent    = formatMs(bestTotal);
+    } else {
+        document.getElementById('met-card-promedio').textContent = '—';
+        document.getElementById('met-card-mejor').textContent    = '—';
+    }
+
+    function avgPerUnit(key) {
+        var vals = sesiones.filter(function(s){ return s.duraciones && s.duraciones[key]; })
+                           .map(function(s){ return s.duraciones[key]; });
+        return vals.length ? Math.round(vals.reduce(function(a,b){return a+b;},0) / vals.length) : 0;
+    }
+    var avgVisionTk  = avgPerUnit('vision_por_tk_ms');
+    var avgCorreoAtm = avgPerUnit('correos_por_atm_ms');
+    var elVTk = document.getElementById('met-card-vision-tk');
+    if (elVTk) elVTk.textContent = avgVisionTk  ? formatMs(avgVisionTk)  : '—';
+    var elCAm = document.getElementById('met-card-correo-atm');
+    if (elCAm) elCAm.textContent = avgCorreoAtm ? formatMs(avgCorreoAtm) : '—';
+
+    function avgStage(key) {
+        var vals = sesiones.filter(function(s){ return s.duraciones && s.duraciones[key]; })
+                           .map(function(s){ return Math.round(s.duraciones[key] / 1000); });
+        return vals.length ? Math.round(vals.reduce(function(a,b){return a+b;},0) / vals.length) : 0;
+    }
+
+    // Gráfico 1: tiempo promedio por etapa
+    if (metricasChart) { metricasChart.destroy(); metricasChart = null; }
+    var canvas = document.getElementById('metricas-chart');
+    if (canvas) {
+        metricasChart = new Chart(canvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['Correos', 'Scripts', 'Vision'],
+                datasets: [{
+                    label: 'Segundos promedio',
+                    data: [avgStage('correos_ms'), avgStage('scripts_ms'), avgStage('vision_ms')],
+                    backgroundColor: ['rgba(13,110,253,0.75)', 'rgba(253,126,20,0.75)', 'rgba(111,66,193,0.75)'],
+                    borderColor:     ['#0D6EFD', '#FD7E14', '#6F42C1'],
+                    borderWidth: 2,
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: function(ctx){ return formatMs(ctx.raw * 1000) + ' prom.'; } } }
+                },
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'Segundos' } } }
+            }
+        });
+    }
+
+    // Gráfico 2: sesiones por día (últimos 7 días)
+    if (metricasChartDias) { metricasChartDias.destroy(); metricasChartDias = null; }
+    var canvas2 = document.getElementById('metricas-chart-dias');
+    if (canvas2) {
+        var last7 = [];
+        for (var i = 6; i >= 0; i--) {
+            var d = new Date(); d.setDate(d.getDate() - i);
+            last7.push(d.toISOString().split('T')[0]);
+        }
+        var counts = {};
+        last7.forEach(function(day){ counts[day] = 0; });
+        sesiones.forEach(function(s){ if (counts.hasOwnProperty(s.fecha)) counts[s.fecha]++; });
+
+        metricasChartDias = new Chart(canvas2.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: last7.map(function(d){ return d.slice(5); }),
+                datasets: [{
+                    label: 'Sesiones',
+                    data: last7.map(function(d){ return counts[d]; }),
+                    borderColor: '#54b948',
+                    backgroundColor: 'rgba(84,185,72,0.12)',
+                    tension: 0.35,
+                    fill: true,
+                    pointRadius: 5,
+                    pointBackgroundColor: '#54b948'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+            }
+        });
+    }
+
+    // Tabla de últimas sesiones
+    var tbody = document.getElementById('metricas-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (sesiones.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-5"><i class="bi bi-inbox fs-2 d-block mb-2 opacity-50"></i>Sin sesiones registradas aún</td></tr>';
+        return;
+    }
+    sesiones.slice(-20).reverse().forEach(function(s) {
+        var d = s.duraciones || {};
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+            '<td class="small text-muted">' + (s.fecha || '') + '</td>' +
+            '<td class="small">' + (s.hora || '') + '</td>' +
+            '<td class="text-center fw-bold">' + (s.n_atms || 0) + '</td>' +
+            '<td class="text-center">' + (s.correos_enviados || 0) + '</td>' +
+            '<td class="small" style="color:#0D6EFD;">' + formatMs(d.correos_ms) + (d.correos_por_atm_ms ? ' <span class="text-muted">(' + formatMs(d.correos_por_atm_ms) + '/ATM)</span>' : '') + '</td>' +
+            '<td class="small" style="color:#FD7E14;">' + formatMs(d.scripts_ms) + '</td>' +
+            '<td class="small" style="color:#6F42C1;">' + formatMs(d.vision_ms) + '</td>' +
+            '<td class="small fw-bold" style="color:#20c997;">' + (d.vision_por_tk_ms ? formatMs(d.vision_por_tk_ms) + ' <span class="text-muted small">×' + (d.vision_tks_count||'?') + 'tk</span>' : '—') + '</td>' +
+            '<td class="small fw-bold">' + formatMs(d.total_ms) + '</td>';
+        tbody.appendChild(tr);
+    });
 }
 
 // ==========================================

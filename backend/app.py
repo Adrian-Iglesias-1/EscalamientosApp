@@ -84,6 +84,21 @@ def _guardar_xolusat():
 xolusat_records = _cargar_xolusat()
 
 
+# ── Persistencia MÉTRICAS ─────────────────────────────────────────────────────
+METRICAS_FILE = os.path.join(APP_DIR, 'metricas_sesiones.json')
+
+def _cargar_metricas():
+    if os.path.exists(METRICAS_FILE):
+        try:
+            with open(METRICAS_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Warning: no se pudo leer metricas_sesiones.json: {e}")
+    return []
+
+metricas_sesiones = _cargar_metricas()
+
+
 def es_sucursal(c):
     return "SUCURSAL" in c or c.startswith("SUC")
 
@@ -651,6 +666,31 @@ def xolusat_clear():
     xolusat_records.clear()
     _guardar_xolusat()
     return jsonify({'status': 'success', 'message': 'Registros limpiados'})
+
+
+# ==========================================
+# MÉTRICAS
+# ==========================================
+
+@app.route('/api/metricas/registrar', methods=['POST'])
+def metricas_registrar():
+    sesion = request.json
+    if not sesion:
+        return jsonify({'status': 'error', 'message': 'Sin datos'}), 400
+    metricas_sesiones.append(sesion)
+    if len(metricas_sesiones) > 500:
+        metricas_sesiones.pop(0)
+    try:
+        with open(METRICAS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(metricas_sesiones, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    return jsonify({'status': 'success'})
+
+
+@app.route('/api/metricas/historial', methods=['GET'])
+def metricas_historial():
+    return jsonify({'status': 'success', 'sesiones': metricas_sesiones})
 
 
 @app.route('/api/shutdown', methods=['POST'])

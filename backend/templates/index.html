@@ -15,7 +15,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=5.0">
+    <link rel="stylesheet" href="/static/style.css?v=5.1">
 </head>
 <body>
 
@@ -103,6 +103,11 @@
             <li class="nav-item" role="presentation">
                 <button class="nav-link px-4 py-2 rounded-pill" onclick="showTab('contactos')" type="button">
                     <i class="bi bi-person-lines-fill me-1"></i> Contactos
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link px-4 py-2 rounded-pill" onclick="showTab('metricas')" type="button">
+                    <i class="bi bi-bar-chart-line me-1"></i> Métricas
                 </button>
             </li>
         </ul>
@@ -214,7 +219,10 @@
                             </button>
                         </div>
                     </div>
-                    <p class="text-muted small mb-3">Comentarios listos para copiar a los tickets:</p>
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <p class="text-muted small mb-0">Comentarios listos para copiar a los tickets:</p>
+                        <span id="vision-tk-progress" class="badge rounded-pill" style="background:rgba(111,66,193,0.15);color:#6F42C1;font-size:0.78rem;"></span>
+                    </div>
                     <div id="scripts-fallas-collapse">
                         <div id="scripts-container-fallas" class="d-flex flex-column gap-2" style="width: 100%;">
                             <div class="text-center text-muted py-5">
@@ -597,6 +605,147 @@
 
         </section>
 
+        <!-- ============================================ -->
+        <!-- TAB: MÉTRICAS -->
+        <!-- ============================================ -->
+        <section id="tab-metricas" class="tab-content">
+
+            <!-- Cards resumen -->
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 text-center">
+                        <div class="card-body py-3">
+                            <div class="fw-bold mb-1" style="font-size:2rem;line-height:1;" id="met-card-hoy">0</div>
+                            <div class="small text-muted">Sesiones hoy</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 text-center">
+                        <div class="card-body py-3">
+                            <div class="fw-bold mb-1 text-success" style="font-size:1.6rem;line-height:1;" id="met-card-promedio">—</div>
+                            <div class="small text-muted">Tiempo promedio</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 text-center">
+                        <div class="card-body py-3">
+                            <div class="fw-bold mb-1 text-warning" style="font-size:1.6rem;line-height:1;" id="met-card-mejor">—</div>
+                            <div class="small text-muted">Mejor tiempo</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card border-0 text-center">
+                        <div class="card-body py-3">
+                            <div class="fw-bold mb-1 text-primary" style="font-size:2rem;line-height:1;" id="met-card-total">0</div>
+                            <div class="small text-muted">Total sesiones</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cards per-unit -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="card border-0 text-center" style="border-left: 4px solid #6F42C1 !important;">
+                        <div class="card-body py-3">
+                            <div class="fw-bold mb-1" style="font-size:1.6rem;line-height:1;color:#6F42C1;" id="met-card-vision-tk">—</div>
+                            <div class="small text-muted">Vision promedio <strong>por ticket</strong></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card border-0 text-center" style="border-left: 4px solid #0D6EFD !important;">
+                        <div class="card-body py-3">
+                            <div class="fw-bold mb-1" style="font-size:1.6rem;line-height:1;color:#0D6EFD;" id="met-card-correo-atm">—</div>
+                            <div class="small text-muted">Correos promedio <strong>por ATM</strong></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gráficos -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-7">
+                    <div class="card border-0">
+                        <div class="card-body p-4">
+                            <div class="data-card-header">
+                                <div class="data-card-icon" style="background:rgba(84,185,72,0.1);color:#54b948;">
+                                    <i class="bi bi-stopwatch"></i>
+                                </div>
+                                <div>
+                                    <h5 class="mb-0 fw-bold" style="font-size:1rem;">Tiempo promedio por etapa</h5>
+                                    <p class="text-muted mb-0" style="font-size:0.75rem;">Segundos promedio de todas las sesiones registradas</p>
+                                </div>
+                            </div>
+                            <div style="position:relative;height:220px;">
+                                <canvas id="metricas-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-5">
+                    <div class="card border-0">
+                        <div class="card-body p-4">
+                            <div class="data-card-header">
+                                <div class="data-card-icon" style="background:rgba(13,110,253,0.1);color:#0D6EFD;">
+                                    <i class="bi bi-calendar3"></i>
+                                </div>
+                                <div>
+                                    <h5 class="mb-0 fw-bold" style="font-size:1rem;">Sesiones por día</h5>
+                                    <p class="text-muted mb-0" style="font-size:0.75rem;">Últimos 7 días</p>
+                                </div>
+                            </div>
+                            <div style="position:relative;height:220px;">
+                                <canvas id="metricas-chart-dias"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabla historial -->
+            <div class="card border-0">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="data-card-icon" style="background:rgba(13,110,253,0.1);color:#0D6EFD;width:32px;height:32px;flex-shrink:0;">
+                            <i class="bi bi-table"></i>
+                        </div>
+                        <h5 class="mb-0 fw-bold flex-grow-1 ms-2" style="font-size:1rem;">Historial de sesiones</h5>
+                        <button onclick="loadMetricas()" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="small text-muted fw-semibold">Fecha</th>
+                                    <th class="small text-muted fw-semibold">Hora</th>
+                                    <th class="small text-muted fw-semibold text-center">ATMs</th>
+                                    <th class="small text-muted fw-semibold text-center">Correos</th>
+                                    <th class="small fw-semibold" style="color:#0D6EFD;">T. Correos</th>
+                                    <th class="small fw-semibold" style="color:#FD7E14;">T. Scripts</th>
+                                    <th class="small fw-semibold" style="color:#6F42C1;">T. Vision</th>
+                                    <th class="small fw-semibold" style="color:#20c997;">Vision/TK</th>
+                                    <th class="small fw-bold">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="metricas-tbody">
+                                <tr><td colspan="8" class="text-center text-muted py-5">
+                                    <i class="bi bi-inbox fs-2 d-block mb-2 opacity-50"></i>
+                                    Cargando...
+                                </td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
 
     </main>
 </div>
@@ -609,8 +758,17 @@
                 <div class="send-title"><i class="bi bi-send-fill me-2"></i>Enviar Escalamientos</div>
                 <div id="email-info">Cargá fallas para comenzar</div>
                 <div id="send-summary" class="send-summary d-none"></div>
+                <div id="session-timer-widget" class="d-none mt-1 d-flex align-items-center gap-2">
+                    <span class="badge rounded-pill text-bg-dark" style="font-family:monospace;font-size:0.78rem;letter-spacing:0.5px;">
+                        <i class="bi bi-stopwatch me-1"></i><span id="session-timer">00:00</span>
+                    </span>
+                    <span id="met-etapas" class="small"></span>
+                </div>
             </div>
             <div class="d-flex gap-2">
+                <button onclick="markVisionDone()" class="btn btn-outline-success" id="btn-vision-done" style="display:none;" title="Marcar documentación en Vision como completada">
+                    <i class="bi bi-check2-square me-1"></i> Vision ✓
+                </button>
                 <button onclick="loadScripts()" class="btn" id="btn-generate-scripts">
                     <i class="bi bi-lightning-charge me-1"></i> Generar Scripts
                 </button>
@@ -653,7 +811,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/static/script.js?v=5.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="/static/script.js?v=5.1"></script>
 <script>
 (function () {
     // Bloquear Ctrl++, Ctrl+-, Ctrl+0 (evitar zoom accidental)
