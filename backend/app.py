@@ -51,13 +51,6 @@ else:
     APP_DIR = os.path.dirname(os.path.abspath(__file__))
     DEFAULT_PATH = os.path.join(APP_DIR, "PlanillaEscalamientos.xlsx")
 
-# TEMPORAL: durante refactor de planilla, usar la nueva si existe.
-# Una vez validado, renombrar la nueva como principal y borrar este override.
-_PATH_NUEVA = os.path.join(APP_DIR, "PlanillaEscalamientos.nueva.xlsx")
-if os.path.exists(_PATH_NUEVA):
-    DEFAULT_PATH = _PATH_NUEVA
-    print(f"[INFO] Usando planilla nueva (modo refactor): {DEFAULT_PATH}")
-
 excel = ExcelHandler(DEFAULT_PATH)
 
 # ── Persistencia XOLUSAT ──────────────────────────────────────────────────────

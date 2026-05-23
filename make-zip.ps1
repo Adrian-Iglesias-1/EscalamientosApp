@@ -6,8 +6,8 @@ Remove-Item $dest -ErrorAction SilentlyContinue
 Remove-Item $tmp -Recurse -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $tmp | Out-Null
 
-$excludeDirs  = @('venv', '.git', '__pycache__', '.claude', 'fotos')
-$excludeFiles = @('make-zip.ps1', 'check-zip.ps1', 'PlanillaEscalamientos.xlsx', 'xolusat_records.json', 'metricas_sesiones.json', 'README.md', '.gitattributes', '.gitignore')
+$excludeDirs  = @('venv', '.git', '__pycache__', '.claude', 'fotos', 'backups')
+$excludeFiles = @('make-zip.ps1', 'check-zip.ps1', 'xolusat_records.json', 'metricas_sesiones.json', 'README.md', '.gitattributes', '.gitignore')
 $excludeExt   = @('.zip', '.log', '.db', '.sqlite', '.pyc')
 
 Get-ChildItem $src -Recurse | Where-Object {
