@@ -1580,7 +1580,7 @@ function renderMetricas(sesiones) {
             '<td class="text-center">' + (s.correos_terceros || 0) + '</td>' +
             '<td class="small" style="color:#0D6EFD;">' + (d.correos_por_atm_ms ? formatMs(d.correos_por_atm_ms) + '<span class="text-muted">/ATM</span>' : formatMs(d.correos_ms)) + '</td>' +
             '<td class="small" style="color:#FD7E14;">' + (d.scripts_por_atm_ms ? formatMs(d.scripts_por_atm_ms) + '<span class="text-muted">/ATM</span>' : formatMs(d.scripts_ms)) + '</td>' +
-            '<td class="small" style="color:#6F42C1;">' + (d.vision_por_tk_ms ? formatMs(d.vision_por_tk_ms) + '<span class="text-muted"> ×' + (d.vision_tks_count||s.n_atms||'?') + 'TK</span>' : '—') + '</td>' +
+            '<td class="small" style="color:#6F42C1;">' + (d.vision_por_tk_ms ? formatMs(d.vision_por_tk_ms) + '/TK' : '—') + '</td>' +
             '<td class="small fw-bold">' + (d.total_por_atm_ms ? formatMs(d.total_por_atm_ms) + '<span class="text-muted">/ATM</span>' : formatMs(d.total_ms)) + '</td>';
         tbody.appendChild(tr);
     });
