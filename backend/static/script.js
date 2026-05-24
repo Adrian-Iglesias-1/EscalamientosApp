@@ -581,10 +581,7 @@ function renderScriptsOnlyFallas() {
         div.innerHTML =
             '<div class="script-header">' +
                 '<div><span class="badge bg-dark me-2">TK: ' + s.ticket + '</span><span class="badge ' + destinoClass + '">' + destino + '</span></div>' +
-                '<div class="d-flex gap-1">' +
-                    '<button onclick="copyToClipboard(\'' + safeComment + '\')" class="btn btn-outline-dark btn-sm" title="Copiar"><i class="bi bi-clipboard"></i></button>' +
-                    '<button onclick="markTkVisionDone(this)" class="btn btn-outline-success btn-sm" data-tk-vision="pending" title="Marcar como documentado en Vision"><i class="bi bi-check2"></i></button>' +
-                '</div>' +
+                '<button onclick="copyToClipboard(\'' + safeComment + '\')" class="btn btn-outline-dark btn-sm" title="Copiar"><i class="bi bi-clipboard"></i></button>' +
             '</div>' +
             '<code class="small text-dark">' + s.comentario + '</code>';
         container.appendChild(div);
@@ -1265,12 +1262,15 @@ function _metUpdateTimer() {
         if (pc) pc.textContent = porCorreo > 0 ? '~' + _metFmtMs(porCorreo * 1000) + '/correo' : '—';
     }
 
-    // Fase Vision: actualiza estimado por TK
-    if (_met.vision_tks && _met.vision_tks.length > 0 && _met.vision_inicio) {
+    // Fase Vision: timer en curso (vision_inicio set, vision no terminado aún)
+    if (_met.vision_inicio && !_met.vision) {
+        var sv = document.getElementById('sb-vision');
+        if (sv) sv.classList.remove('d-none');
+        var svp = document.getElementById('sb-vision-prog');
+        if (svp) svp.textContent = 'En Vision...';
         var vSecs = Math.floor((now - _met.vision_inicio) / 1000);
-        var porTK = Math.round(vSecs / _met.vision_tks.length);
         var vtk = document.getElementById('sb-vision-tk');
-        if (vtk) vtk.textContent = porTK > 0 ? '~' + _metFmtMs(porTK * 1000) + '/TK' : '—';
+        if (vtk) vtk.textContent = _metFmtSecs(vSecs);
     }
 }
 
@@ -1312,6 +1312,7 @@ function metricasMarkCorreos(count, sucursal, custodios) {
 function metricasMarkScripts(count) {
     if (!_met.activo) return;
     _met.scripts = Date.now();
+    _met.vision_inicio = _met.scripts;
     _met.scripts_count = count;
     _metUpdateEtapas();
     var vb = document.getElementById('btn-vision-done');
@@ -1346,10 +1347,16 @@ function markTkVisionDone(btn) {
 function markVisionDone() {
     if (!_met.activo) { showToast('No hay sesión activa', 'warning'); return; }
     _met.vision = Date.now();
-    if (!_met.vision_inicio) {
-        _met.vision_inicio = (_met.vision_tks.length > 0) ? _met.vision_tks[0] : (_met.scripts || _met.correos || _met.procesado);
-    }
+    if (!_met.vision_inicio) _met.vision_inicio = _met.scripts || _met.correos || _met.procesado;
     _metUpdateEtapas();
+
+    // Sidebar: mostrar resultado Vision
+    var visionMs = _met.vision - _met.vision_inicio;
+    var svp = document.getElementById('sb-vision-prog');
+    if (svp) svp.textContent = '✓ ' + _met.n_atms + ' TKs';
+    var vtk = document.getElementById('sb-vision-tk');
+    if (vtk && _met.n_atms > 0) vtk.textContent = '~' + _metFmtMs(visionMs / _met.n_atms) + '/TK';
+
     var vb = document.getElementById('btn-vision-done');
     if (vb) { vb.className = 'btn btn-success'; vb.innerHTML = '<i class="bi bi-check2-all me-1"></i> Vision ✓'; }
     _metGuardarSesion();
@@ -1377,9 +1384,9 @@ async function _metGuardarSesion() {
     if (t.vision)  { d.vision_ms  = t.vision - visionRef; }
     var lastStep = t.vision || t.scripts || t.correos || t.procesado;
     if (lastStep && t.inicio) d.total_ms = lastStep - t.inicio;
-    if (d.vision_ms && t.vision_tks && t.vision_tks.length > 0) {
-        d.vision_por_tk_ms  = Math.round(d.vision_ms / t.vision_tks.length);
-        d.vision_tks_count  = t.vision_tks.length;
+    if (d.vision_ms && t.n_atms > 0) {
+        d.vision_por_tk_ms = Math.round(d.vision_ms / t.n_atms);
+        d.vision_tks_count = t.n_atms;
     }
     if (t.n_atms > 0) {
         if (d.correos_ms) d.correos_por_atm_ms = Math.round(d.correos_ms / t.n_atms);
