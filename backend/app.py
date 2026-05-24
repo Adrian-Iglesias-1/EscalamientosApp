@@ -255,7 +255,7 @@ def send_emails():
     df['id_norm'] = df['0'].apply(excel.normalizar)
     grupos = df.groupby('id_norm')
 
-    results = {'abiertos': 0, 'sin_sla': 0, 'sin_contacto': 0, 'sucursal': 0, 'terceros': 0}
+    results = {'abiertos': 0, 'sin_sla': 0, 'sin_contacto': 0, 'sucursal': 0, 'custodios': 0}
 
     for id_norm, group in grupos:
         if not id_norm.strip() or id_norm.lower() == "nan":
@@ -346,7 +346,7 @@ def send_emails():
             success, msg = crear_correo_outlook(email, cc, asunto, cuerpo)
             if success:
                 results['abiertos'] += 1
-                results[tipo_dest] += 1
+                results[tipo_dest if tipo_dest == 'sucursal' else 'custodios'] += 1
             else:
                 return jsonify({'status': 'error', 'message': msg}), 500
 

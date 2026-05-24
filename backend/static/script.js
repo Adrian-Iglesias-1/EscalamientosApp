@@ -664,10 +664,10 @@ async function sendEmails() {
         var data = await res.json();
         if (data.status === 'success') {
             var r = data.results;
-            metricasMarkCorreos(r.abiertos, r.sucursal, r.terceros);
+            metricasMarkCorreos(r.abiertos, r.sucursal, r.custodios);
             var toastParts = ['Correos: ' + r.abiertos + ' abiertos'];
-            if (r.sucursal) toastParts.push(r.sucursal + ' sucursal');
-            if (r.terceros) toastParts.push(r.terceros + ' terceros');
+            if (r.sucursal)  toastParts.push(r.sucursal  + ' sucursal');
+            if (r.custodios) toastParts.push(r.custodios + ' custodios');
             toastParts.push(r.sin_sla + ' sin SLA', r.sin_contacto + ' sin contacto');
             showToast(toastParts.join(' | '), 'success');
         } else {
@@ -1217,29 +1217,61 @@ function metricasStartSession(nAtms) {
     _met = { activo: true, inicio: now, procesado: now, correos: null, scripts: null, vision: null, vision_inicio: null, vision_tks: [], n_atms: nAtms, correos_count: 0, correos_sucursal: 0, correos_terceros: 0, scripts_count: 0 };
     _metUpdateTimer();
     _metTimer = setInterval(_metUpdateTimer, 1000);
-    var tw = document.getElementById('session-timer-widget');
-    if (tw) tw.classList.remove('d-none');
-    _metUpdateEtapas();
+    var w = document.getElementById('sidebar-met-widget');
+    if (w) w.classList.remove('d-none');
+    ['sb-correos','sb-envio','sb-vision'].forEach(function(id){
+        var el = document.getElementById(id); if (el) el.classList.add('d-none');
+    });
 }
 
 function metricasResetTimer() {
     if (_metTimer) { clearInterval(_metTimer); _metTimer = null; }
     _met.activo = false;
-    var tw = document.getElementById('session-timer-widget');
-    if (tw) tw.classList.add('d-none');
+    var w = document.getElementById('sidebar-met-widget');
+    if (w) w.classList.add('d-none');
     var vb = document.getElementById('btn-vision-done');
     if (vb) { vb.style.display = 'none'; vb.className = 'btn btn-outline-success'; vb.innerHTML = '<i class="bi bi-check2-square me-1"></i> Vision ✓'; }
     var el = document.getElementById('session-timer');
     if (el) el.textContent = '00:00';
 }
 
+function _metFmtMs(ms) {
+    var s = Math.round(ms / 1000);
+    var m = Math.floor(s / 60);
+    return m > 0 ? m + 'm ' + (s % 60) + 's' : s + 's';
+}
+
+function _metFmtSecs(secs) {
+    var m = Math.floor(secs / 60);
+    return (m < 10 ? '0' : '') + m + ':' + (secs % 60 < 10 ? '0' : '') + (secs % 60);
+}
+
 function _metUpdateTimer() {
     if (!_met.activo || !_met.inicio) return;
-    var elapsed = Math.floor((Date.now() - _met.inicio) / 1000);
-    var m = Math.floor(elapsed / 60);
-    var s = elapsed % 60;
+    var now = Date.now();
+    var elapsed = Math.floor((now - _met.inicio) / 1000);
     var el = document.getElementById('session-timer');
-    if (el) el.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    if (el) el.textContent = _metFmtSecs(elapsed);
+
+    // Fase envío: mientras correos abiertos y scripts aún no generados
+    if (_met.correos && !_met.scripts && _met.correos_count > 0) {
+        var faseEl = document.getElementById('sb-envio');
+        if (faseEl) faseEl.classList.remove('d-none');
+        var faseSecs = Math.floor((now - _met.correos) / 1000);
+        var ft = document.getElementById('sb-envio-timer');
+        if (ft) ft.textContent = _metFmtSecs(faseSecs);
+        var porCorreo = faseSecs > 0 ? Math.round(faseSecs / _met.correos_count) : 0;
+        var pc = document.getElementById('sb-por-correo');
+        if (pc) pc.textContent = porCorreo > 0 ? '~' + _metFmtMs(porCorreo * 1000) + '/correo' : '—';
+    }
+
+    // Fase Vision: actualiza estimado por TK
+    if (_met.vision_tks && _met.vision_tks.length > 0 && _met.vision_inicio) {
+        var vSecs = Math.floor((now - _met.vision_inicio) / 1000);
+        var porTK = Math.round(vSecs / _met.vision_tks.length);
+        var vtk = document.getElementById('sb-vision-tk');
+        if (vtk) vtk.textContent = porTK > 0 ? '~' + _metFmtMs(porTK * 1000) + '/TK' : '—';
+    }
 }
 
 function _metUpdateEtapas() {
@@ -1252,13 +1284,27 @@ function _metUpdateEtapas() {
     el.innerHTML = parts.join('<span class="mx-1 text-muted">›</span>');
 }
 
-function metricasMarkCorreos(count, sucursal, terceros) {
+function metricasMarkCorreos(count, sucursal, custodios) {
     if (!_met.activo) return;
     _met.correos = Date.now();
     _met.correos_count = count;
     _met.correos_sucursal = sucursal || 0;
-    _met.correos_terceros = terceros || 0;
+    _met.correos_terceros = custodios || 0;
     _metUpdateEtapas();
+
+    // Sidebar: mostrar sección correos
+    var sc = document.getElementById('sb-correos');
+    if (sc) sc.classList.remove('d-none');
+    var st = document.getElementById('sb-correos-total');
+    if (st) st.textContent = count + ' correo' + (count !== 1 ? 's' : '');
+    var sd = document.getElementById('sb-correos-desglose');
+    if (sd) {
+        var parts = [];
+        if (sucursal)  parts.push(sucursal  + ' sucursal');
+        if (custodios) parts.push(custodios + ' custodios');
+        sd.textContent = parts.join(' · ');
+    }
+
     var vb = document.getElementById('btn-vision-done');
     if (vb) vb.style.display = '';
 }
@@ -1287,6 +1333,12 @@ function markTkVisionDone(btn) {
     var done  = document.querySelectorAll('[data-tk-vision="done"]').length;
     var prog  = document.getElementById('vision-tk-progress');
     if (prog) prog.textContent = done + '/' + total + ' documentados';
+
+    // Sidebar vision
+    var sv = document.getElementById('sb-vision');
+    if (sv) sv.classList.remove('d-none');
+    var svp = document.getElementById('sb-vision-prog');
+    if (svp) svp.textContent = done + ' / ' + total + ' TKs';
 
     if (done >= total && total > 0) markVisionDone();
 }
@@ -1441,7 +1493,7 @@ function renderMetricas(sesiones) {
         metricasChartSector = new Chart(canvasSector.getContext('2d'), {
             type: 'doughnut',
             data: {
-                labels: ['Sucursal', 'Terceros'],
+                labels: ['Sucursal', 'Custodios'],
                 datasets: [{
                     data: [totalSuc, totalTerc],
                     backgroundColor: ['rgba(13,110,253,0.8)', 'rgba(253,126,20,0.8)'],
@@ -1462,7 +1514,7 @@ function renderMetricas(sesiones) {
         var elST = document.getElementById('met-sector-totals');
         if (elST) elST.innerHTML =
             '<span style="color:#0D6EFD;"><strong>' + totalSuc  + '</strong> Sucursal</span>' +
-            '<span style="color:#FD7E14;"><strong>' + totalTerc + '</strong> Terceros</span>';
+            '<span style="color:#FD7E14;"><strong>' + totalTerc + '</strong> Custodios</span>';
     }
 
     // Gráfico 3: sesiones por día (últimos 7 días)
