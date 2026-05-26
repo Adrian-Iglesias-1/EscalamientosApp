@@ -669,6 +669,12 @@ section#tab-fallas .col-md-6:last-child .data-card-icon {
 /* ─── KPI de tiempo en Métricas — verde semántico ────────────────────── */
 .met-kpi-time { color: var(--brand-green) !important; }
 
+/* ─── Mini-cards de métricas por unidad ─────────────────────────────── */
+.met-mini-card { border-left: 4px solid var(--brand-green) !important; }
+
+/* ─── KPI cards superiores — acento top sutil ───────────────────────── */
+.met-kpi-card { border-top: 3px solid var(--brand-green) !important; }
+
 /* ─── Scrollbar ─────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: #E2E8F0; border-radius: 4px; }
