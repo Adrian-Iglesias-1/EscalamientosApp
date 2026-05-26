@@ -123,10 +123,11 @@ echo.
 
 :: Instalar dependencias solo si es necesario
 echo [3/4] Verificando dependencias...
-call venv\Scripts\pip install -r requirements.txt --quiet 2>nul
+set "PIP_TRUSTED=--trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org"
+call venv\Scripts\pip install -r requirements.txt %PIP_TRUSTED% --quiet 2>nul
 if errorlevel 1 (
     echo     Instalando dependencias...
-    call venv\Scripts\pip install -r requirements.txt
+    call venv\Scripts\pip install -r requirements.txt %PIP_TRUSTED%
     if errorlevel 1 (
         echo.
         echo ERROR: No se pudieron instalar las dependencias.

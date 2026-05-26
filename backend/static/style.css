@@ -149,10 +149,6 @@ main.flex-grow-1.main--send-panel-space {
     box-shadow: 0 4px 12px var(--brand-green-glow);
 }
 
-#mainTabs .nav-link[onclick*="scripts"].active   { background-color: var(--brand-red) !important; border-color: var(--brand-red) !important; box-shadow: 0 4px 12px rgba(220,53,69,0.25); }
-#mainTabs .nav-link[onclick*="scripts"]:hover    { background-color: var(--brand-red) !important; color: white !important; border-color: var(--brand-red) !important; }
-#mainTabs .nav-link[onclick*="xolusat"].active   { background-color: var(--brand-blue) !important; border-color: var(--brand-blue) !important; box-shadow: 0 4px 12px rgba(13,110,253,0.25); }
-#mainTabs .nav-link[onclick*="xolusat"]:hover    { background-color: var(--brand-blue) !important; color: white !important; border-color: var(--brand-blue) !important; }
 
 /* ─── Tab content ────────────────────────────────────────────────────── */
 .tab-content { display: none; }
@@ -170,8 +166,8 @@ main.flex-grow-1.main--send-panel-space {
 .btn-outline-primary { color: var(--brand-green) !important; border-color: var(--brand-green) !important; }
 .btn-outline-primary:hover { background-color: var(--brand-green) !important; color: white !important; transform: translateY(-1px); }
 
-.btn-outline-primary.btn-xolusat { color: var(--brand-blue) !important; border-color: var(--brand-blue) !important; }
-.btn-outline-primary.btn-xolusat:hover { background-color: var(--brand-blue) !important; color: white !important; }
+.btn-outline-primary.btn-xolusat { color: var(--brand-green) !important; border-color: var(--brand-green) !important; }
+.btn-outline-primary.btn-xolusat:hover { background-color: var(--brand-green) !important; color: white !important; }
 
 /* Section color overrides */
 section#tab-fallas .btn-primary,
@@ -179,10 +175,10 @@ section#tab-fallas .btn-primary:hover    { background-color: var(--brand-green) 
 section#tab-scripts .btn-primary,
 section#tab-scripts .btn-primary:hover   { background-color: var(--brand-red) !important; border-color: var(--brand-red) !important; }
 section#tab-xolusat .btn-primary,
-section#tab-xolusat .btn-primary:hover   { background-color: var(--brand-blue) !important; border-color: var(--brand-blue) !important; }
+section#tab-xolusat .btn-primary:hover   { background-color: var(--brand-green) !important; border-color: var(--brand-green) !important; }
 
 .btn-fallas     { background-color: var(--brand-green) !important; border-color: var(--brand-green) !important; color: white !important; }
-.btn-xolusat    { background-color: var(--brand-blue) !important;  border-color: var(--brand-blue) !important;  color: white !important; }
+.btn-xolusat    { background-color: var(--brand-green) !important; border-color: var(--brand-green) !important; color: white !important; }
 
 
 
@@ -604,8 +600,8 @@ section#tab-fallas .col-md-6:last-child .data-card-icon {
 .nav-tabs .nav-link { color: var(--text-muted) !important; border-radius: 8px 8px 0 0 !important; }
 .nav-tabs .nav-link:hover { color: var(--text-primary) !important; }
 .nav-tabs .nav-link.active {
-    border-color: var(--brand-blue) var(--brand-blue) transparent !important;
-    color: var(--brand-blue) !important;
+    border-color: var(--brand-green) var(--brand-green) transparent !important;
+    color: var(--brand-green) !important;
     font-weight: 600;
     background: transparent !important;
 }
@@ -649,6 +645,30 @@ section#tab-fallas .col-md-6:last-child .data-card-icon {
 #not-found-section h6 { font-size: 0.85rem; }
 #not-found-list .badge { font-size: 0.75rem; border-radius: 6px; }
 
+/* ─── Cerrar servidor — acción destructiva discreta ─────────────────── */
+.btn-cerrar-servidor {
+    display: block;
+    width: 100%;
+    background: none;
+    border: none;
+    color: var(--text-light);
+    font-size: 0.75rem;
+    text-align: center;
+    padding: 6px 0;
+    margin-top: 12px;
+    cursor: pointer;
+    border-radius: var(--radius-btn);
+    transition: color var(--transition), background var(--transition);
+    font-family: inherit;
+}
+.btn-cerrar-servidor:hover {
+    color: var(--brand-red);
+    background: rgba(220, 53, 69, 0.06);
+}
+
+/* ─── KPI de tiempo en Métricas — verde semántico ────────────────────── */
+.met-kpi-time { color: var(--brand-green) !important; }
+
 /* ─── Scrollbar ─────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: #E2E8F0; border-radius: 4px; }
@@ -669,7 +689,7 @@ section#tab-fallas .col-md-6:last-child .data-card-icon {
     z-index: 5;
 }
 #xol-table thead th {
-    background: linear-gradient(135deg, var(--brand-blue) 0%, #0a58ca 100%) !important;
+    background: linear-gradient(135deg, var(--brand-dark) 0%, #334155 100%) !important;
     color: white !important;
     font-size: 0.75rem;
     font-weight: 600;
@@ -686,7 +706,7 @@ section#tab-fallas .col-md-6:last-child .data-card-icon {
     transition: background var(--transition);
     border-bottom: 1px solid #F1F5F9;
 }
-#xol-table tbody tr:hover { background: #EFF6FF !important; }
+#xol-table tbody tr:hover { background: rgba(84,185,72,0.06) !important; }
 #xol-table tbody td {
     padding: 9px 14px !important;
     font-size: 0.84rem;
@@ -695,9 +715,13 @@ section#tab-fallas .col-md-6:last-child .data-card-icon {
 }
 #xol-table tbody tr:nth-child(even) { background: #F8FAFC; }
 
-/* Borde azul en headers de card xolusat */
+/* Acentos verdes en sección XOLUSAT */
 section#tab-xolusat .data-card-header {
-    border-bottom-color: var(--brand-blue) !important;
+    border-bottom-color: var(--brand-green) !important;
+}
+section#tab-xolusat .data-card-icon {
+    background: var(--brand-green-glow) !important;
+    color: var(--brand-green) !important;
 }
 
 /* Wrapper scrolleable para tabla xolusat */
