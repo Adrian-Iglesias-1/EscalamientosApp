@@ -1457,6 +1457,27 @@ function renderMetricas(sesiones) {
     var elTAm = document.getElementById('met-card-total-atm');
     if (elTAm) elTAm.textContent = avgTotalAtm ? formatMs(avgTotalAtm) : '—';
 
+    // Total correos enviados (acumulado de todas las sesiones)
+    var totalCorreosEnviados = sesiones.reduce(function(s, x) {
+        return s + (x.correos_enviados || (x.correos_sucursal || 0) + (x.correos_terceros || 0));
+    }, 0);
+    var elCT = document.getElementById('met-card-correos-total');
+    if (elCT) elCT.textContent = totalCorreosEnviados;
+
+    // Promedio de tiempo por correo (correos_ms / correos_count por sesión, luego promedio)
+    var conCorreoMs = sesiones.filter(function(s) {
+        var c = s.correos_enviados || (s.correos_sucursal || 0) + (s.correos_terceros || 0);
+        return c > 0 && s.duraciones && s.duraciones.correos_ms;
+    });
+    var avgMsPorCorreo = conCorreoMs.length > 0
+        ? conCorreoMs.reduce(function(sum, s) {
+            var c = s.correos_enviados || (s.correos_sucursal || 0) + (s.correos_terceros || 0);
+            return sum + s.duraciones.correos_ms / c;
+        }, 0) / conCorreoMs.length
+        : 0;
+    var elPC = document.getElementById('met-card-prom-correo');
+    if (elPC) elPC.textContent = avgMsPorCorreo ? formatMs(avgMsPorCorreo) : '—';
+
     // Gráfico 1: tiempo promedio por etapa normalizado por ATM/TK
     if (metricasChart) { metricasChart.destroy(); metricasChart = null; }
     var canvas = document.getElementById('metricas-chart');
