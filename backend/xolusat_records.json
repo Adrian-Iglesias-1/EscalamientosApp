@@ -1,0 +1,13 @@
+[
+  {
+    "incident": "dsadsa",
+    "estado": "OPEN",
+    "id_atm": "BHD0026",
+    "subcategoria": "SIN COMUNICACION",
+    "detalle": "sadsad",
+    "sla": "4 hrs",
+    "atm_nombre": "Ag. Monte Plata L3",
+    "custodio": "SUCURSAL",
+    "fecha_reg": "11/07/2026 09:17"
+  }
+]

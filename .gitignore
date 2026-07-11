@@ -1,0 +1,16 @@
+# Environment
+backend/venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config
+.env
+
+# Temp scripts
+_crear_shortcut.ps1
+_refresh_icons.bat
